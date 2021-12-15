@@ -21,4 +21,4 @@ def get_instance_region():
     return r.json()
 
 resp = get_instance_region()
-print(respt)
+print(resp)
