@@ -1,6 +1,6 @@
 # Technical Challenge
 
-This repository provides a AWS CFT YAML for deploying a 3-tier web application to Amazon EC2 instances, Aurora-MySQL cluster and additonally added other to coding challenges solved via python scripting.
+This repository provides a AWS CFT YAML for deploying a 3-tier web application to Amazon EC2 instances, Aurora-MySQL cluster and additonally added other coding challenges solved via python scripting.
 
 # Challenge 1
 A 3-tier environment is a common setup. Use a tool of your choosing/familiarity create these
