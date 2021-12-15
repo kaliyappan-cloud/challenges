@@ -369,7 +369,6 @@ Resources:
             LoadBalancerArn: !Ref LoadBalancer
             Port: 443
             Protocol: HTTPS
-            for HTTPS we need to add certificate, since i don't have certificate in my personal account removed for now
             Certificates:
                 - CertificateArn: !Ref CertificateArn
             DefaultActions:
