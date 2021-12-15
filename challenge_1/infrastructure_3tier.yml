@@ -1,0 +1,546 @@
+Description: >
+    This template deploys a VPC, with a pair of public, private subnets spread
+    across two Availabilty Zones, It deploys an Internet Gateway, with a default
+    route on the public subnets. It deploys a pair of NAT Gateways (one in each AZ),
+    and default routes for them in the private subnets. Also it deployes load balancer, 
+    web server and db instance for 3 tier architecture.
+Parameters:
+
+    EnvironmentName:
+        Description: Environment Type
+        Type: String
+        Default: Staging
+        AllowedValues:
+            - Staging
+            - Prod
+
+    VpcCIDR:
+        Description: Please enter the IP range (CIDR notation) for this VPC
+        Type: String
+        Default: 10.0.0.0/16
+
+    PublicSubnet1CIDR:
+        Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+        Type: String
+        Default: 10.0.32.0/19
+
+    PublicSubnet2CIDR:
+        Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
+        Type: String
+        Default: 10.0.96.0/19
+
+    PublicSubnet3CIDR:
+        Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
+        Type: String
+        Default: 10.0.160.0/19
+
+    PrivateSubnet1CIDR:
+        Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+        Type: String
+        Default: 10.0.0.0/19
+
+    PrivateSubnet2CIDR:
+        Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+        Type: String
+        Default: 10.0.64.0/19
+
+    PrivateSubnet3CIDR:
+        Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+        Type: String
+        Default: 10.0.128.0/19
+
+    CertificateArn:
+        Description: AWS ARN of the SSL certificate to be used by the ALB
+        Type: String
+
+    InstanceType:
+        Default: t3a.micro
+        Description: Web Server instance types
+        Type: String
+        AllowedValues:
+            - t3a.micro
+            - t3a.medium
+            - t3a.large
+            - m5a.large
+
+    KeyName:
+        Description: The EC2 Key Pair to allow SSH access to the instances
+        Type: AWS::EC2::KeyPair::KeyName
+        ConstraintDescription: must be the name of an existing EC2 KeyPair.
+        Default: ""
+
+    AmiId:
+        Default: ami-09ccae867ce442733
+        Description: Web Server AMI
+        Type: String
+
+
+    DatabaseInstanceType:
+        Default: db.t3.small
+        Description: The instance type to use for the database.
+        Type: String
+
+    DatabasePassword:
+        AllowedPattern: "[a-zA-Z0-9]+"
+        ConstraintDescription: must contain only alphanumeric characters.
+        Description: The database admin account password.
+        MaxLength: '41'
+        MinLength: '8'
+        NoEcho: 'true'
+        Type: String
+
+    DatabaseUsername:
+        AllowedPattern: "[a-zA-Z0-9]+"
+        ConstraintDescription: must contain only alphanumeric characters.
+        Description: The database admin account user name.
+        MaxLength: '16'
+        MinLength: '1'
+        Type: String
+
+    DatabaseName:
+        Type: String
+        Description: Database name
+
+Resources:
+
+    VPC:
+        Type: AWS::EC2::VPC
+        Properties:
+            CidrBlock: !Ref VpcCIDR
+            Tags:
+                - Key: Name
+                  Value: !Ref EnvironmentName
+
+    InternetGateway:
+        Type: AWS::EC2::InternetGateway
+        Properties:
+            Tags:
+                - Key: Name
+                  Value: !Sub ${EnvironmentName}-IGW
+
+    InternetGatewayAttachment:
+        Type: AWS::EC2::VPCGatewayAttachment
+        Properties:
+            InternetGatewayId: !Ref InternetGateway
+            VpcId: !Ref VPC
+
+    PublicSubnet1:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Select [ 0, !GetAZs ]
+            CidrBlock: !Ref PublicSubnet1CIDR
+            MapPublicIpOnLaunch: true
+            Tags:
+                - Key: Name
+                  Value: !Sub ${EnvironmentName} Public Subnet (AZ1)
+
+    PublicSubnet2:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Select [ 1, !GetAZs ]
+            CidrBlock: !Ref PublicSubnet2CIDR
+            MapPublicIpOnLaunch: true
+            Tags:
+                - Key: Name
+                  Value: !Sub ${EnvironmentName} Public Subnet (AZ2)
+
+    PublicSubnet3:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Select [ 2, !GetAZs ]
+            CidrBlock: !Ref PublicSubnet3CIDR
+            MapPublicIpOnLaunch: true
+            Tags:
+                - Key: Name
+                  Value: !Sub ${EnvironmentName} Public Subnet (AZ3)
+
+    PrivateSubnet1:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Select [ 0, !GetAZs ]
+            CidrBlock: !Ref PrivateSubnet1CIDR
+            MapPublicIpOnLaunch: false
+            Tags:
+                - Key: Name
+                  Value: !Sub ${EnvironmentName} Private Subnet (AZ1)
+
+    PrivateSubnet2:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Select [ 1, !GetAZs ]
+            CidrBlock: !Ref PrivateSubnet2CIDR
+            MapPublicIpOnLaunch: false
+            Tags:
+                - Key: Name
+                  Value: !Sub ${EnvironmentName} Private Subnet (AZ2)
+
+    PrivateSubnet3:
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Select [ 2, !GetAZs ]
+            CidrBlock: !Ref PrivateSubnet3CIDR
+            MapPublicIpOnLaunch: false
+            Tags:
+                - Key: Name
+                  Value: !Sub ${EnvironmentName} Private Subnet (AZ3)
+
+    NatGateway1EIP:
+        Type: AWS::EC2::EIP
+        DependsOn: InternetGatewayAttachment
+        Properties:
+            Domain: vpc
+
+    NatGateway1:
+        Type: AWS::EC2::NatGateway
+        Properties:
+            AllocationId: !GetAtt NatGateway1EIP.AllocationId
+            SubnetId: !Ref PublicSubnet1
+
+    PublicRouteTable:
+        Type: AWS::EC2::RouteTable
+        Properties:
+            VpcId: !Ref VPC
+            Tags:
+                - Key: Name
+                  Value: !Sub ${EnvironmentName} Public Routes
+
+    DefaultPublicRoute:
+        Type: AWS::EC2::Route
+        DependsOn: InternetGatewayAttachment
+        Properties:
+            RouteTableId: !Ref PublicRouteTable
+            DestinationCidrBlock: 0.0.0.0/0
+            GatewayId: !Ref InternetGateway
+
+    PublicSubnet1RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId: !Ref PublicRouteTable
+            SubnetId: !Ref PublicSubnet1
+
+    PublicSubnet2RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId: !Ref PublicRouteTable
+            SubnetId: !Ref PublicSubnet2
+
+    PublicSubnet3RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId: !Ref PublicRouteTable
+            SubnetId: !Ref PublicSubnet3
+
+    PrivateRouteTable1:
+        Type: AWS::EC2::RouteTable
+        Properties:
+            VpcId: !Ref VPC
+            Tags:
+                - Key: Name
+                  Value: !Sub ${EnvironmentName} Private Routes (AZ1)
+
+    DefaultPrivateRoute1:
+      Type: AWS::EC2::Route
+      Properties:
+        RouteTableId: !Ref PrivateRouteTable1
+        DestinationCidrBlock: 0.0.0.0/0
+        NatGatewayId: !Ref NatGateway1
+
+    PrivateSubnet1RouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        RouteTableId: !Ref PrivateRouteTable1
+        SubnetId: !Ref PrivateSubnet1
+
+    PrivateSubnet2RouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        RouteTableId: !Ref PrivateRouteTable1
+        SubnetId: !Ref PrivateSubnet2
+
+    PrivateSubnet3RouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        RouteTableId: !Ref PrivateRouteTable1
+        SubnetId: !Ref PrivateSubnet3
+
+    # Web Server Security group
+    # By default we're just allowing access from the load balancer.  If you want to SSH
+    # into the hosts, or expose non-load balanced services you can open their ports here.
+    EC2SecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+           VpcId: !Ref VPC
+           GroupDescription: Web server security group
+           SecurityGroupIngress:
+               # Only allow inbound access to ECS from the ELB
+               - IpProtocol: tcp
+                 FromPort: '80'
+                 ToPort: '80'
+                 SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+               - IpProtocol: tcp
+                 FromPort: '443'
+                 ToPort: '443'
+                 SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+               - IpProtocol: tcp
+                 FromPort: '22'
+                 ToPort: '22'
+                 CidrIp: '0.0.0.0/0'
+           Tags:
+               - Key: Name
+                 Value: !Sub ${EnvironmentName}-Web-Servers
+
+    # Application Load Balancer Security group
+    LoadBalancerSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+           VpcId: !Ref VPC
+           GroupDescription: Access to the load balancer that sits in front of EC2
+           SecurityGroupIngress:
+               # Allow access from anywhere to our EC2 services
+               - IpProtocol: tcp
+                 FromPort: '80'
+                 ToPort: '80'
+                 CidrIp: 0.0.0.0/0
+               - IpProtocol: tcp
+                 FromPort: '443'
+                 ToPort: '443'
+                 CidrIp: 0.0.0.0/0
+           Tags:
+               - Key: Name
+                 Value: !Sub ${EnvironmentName}-ApplicationLoadBalancers
+
+    # Aurora/MySQL database security group
+    DBSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+          GroupDescription: Open database for access
+          VpcId: !Ref VPC
+          SecurityGroupIngress:
+              - IpProtocol: tcp
+                FromPort: '3306'
+                ToPort: '3306'
+                SourceSecurityGroupId: !Ref EC2SecurityGroup
+          Tags:
+              - Key: Name
+                Value: !Sub ${EnvironmentName}-AuroraRDS
+
+    LoadBalancer:
+        Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+        UpdateReplacePolicy: Retain
+        Properties:
+            Name: !Sub ${EnvironmentName}-ALB
+            Subnets: 
+              - !Ref PublicSubnet1
+              - !Ref PublicSubnet2
+              - !Ref PublicSubnet3
+            SecurityGroups:
+                - !Ref LoadBalancerSecurityGroup
+            Tags:
+                - Key: Name
+                  Value: !Ref EnvironmentName
+
+    LoadBalancerListenerHTTP:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        UpdateReplacePolicy: Retain
+        Properties:
+            LoadBalancerArn: !Ref LoadBalancer
+            Port: 80
+            Protocol: HTTP
+            DefaultActions:
+                - Type: "redirect"
+                  RedirectConfig:
+                    Protocol: "HTTPS"
+                    Port: "443"
+                    Host: "#{host}"
+                    Path: "/#{path}"
+                    Query: "#{query}"
+                    StatusCode: "HTTP_301"
+
+    LoadBalancerListenerHTTPS:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        UpdateReplacePolicy: Retain
+        Properties:
+            LoadBalancerArn: !Ref LoadBalancer
+            Port: 443
+            Protocol: HTTPS
+            for HTTPS we need to add certificate, since i don't have certificate in my personal account removed for now
+            Certificates:
+                - CertificateArn: !Ref CertificateArn
+            DefaultActions:
+                - Type: forward
+                  TargetGroupArn: !Ref DefaultTargetGroup
+
+    DefaultTargetGroup:
+        Type: AWS::ElasticLoadBalancingV2::TargetGroup
+        UpdateReplacePolicy: Retain
+        Properties:
+            Name: !Sub ${EnvironmentName}-TargetGroup
+            VpcId: !Ref VPC
+            Port: 443
+            Protocol: HTTPS
+            HealthCheckPath: /
+            HealthCheckPort: 443
+            HealthCheckTimeoutSeconds: 5
+            Targets:
+            - Id:
+                Ref: WebserverInstance
+            HealthyThresholdCount: 5
+            UnhealthyThresholdCount: 2
+            HealthCheckIntervalSeconds: 300
+
+    WebserverInstance:
+      Type: AWS::EC2::Instance
+      Properties:
+        ImageId: !Ref AmiId
+        SecurityGroupIds: 
+          - Ref: EC2SecurityGroup
+        InstanceType: t2.nano
+        KeyName:
+          Ref: KeyName
+        Monitoring: 'true'
+        SubnetId:
+          Ref: PrivateSubnet1
+        Tenancy: default
+
+    DatabaseSubnetGroup:
+        Type: AWS::RDS::DBSubnetGroup
+        Properties:
+            DBSubnetGroupDescription: CloudFormation managed DB subnet group.
+            SubnetIds:
+              - !Ref PrivateSubnet1
+              - !Ref PrivateSubnet2
+              - !Ref PrivateSubnet3
+
+    # Aurora Database Cluster(s) confguration
+    DatabaseCluster:
+        Type: AWS::RDS::DBCluster
+        Properties:
+            Engine: aurora-mysql
+            EngineVersion: 5.7.12
+            DBClusterParameterGroupName: default.aurora-mysql5.7
+            DatabaseName: !Ref DatabaseName
+            MasterUsername: !Ref DatabaseUsername
+            MasterUserPassword: !Ref DatabasePassword
+            DBSubnetGroupName: !Ref DatabaseSubnetGroup
+            StorageEncrypted: true # At rest encryption enabled
+            VpcSecurityGroupIds:
+              - !Ref DBSecurityGroup
+
+    DatabasePrimaryInstance:
+        Type: AWS::RDS::DBInstance
+        Properties:
+            Engine: aurora-mysql
+            EngineVersion: 5.7.12
+            DBParameterGroupName: !Ref RDSDBParameterGroup
+            DBClusterIdentifier: !Ref DatabaseCluster
+            DBInstanceClass:  !Ref DatabaseInstanceType
+            DBSubnetGroupName: !Ref DatabaseSubnetGroup
+
+    RDSDBParameterGroup:
+        Type: "AWS::RDS::DBParameterGroup"
+        Properties:
+            Description: "CloudFormation  Aurora Parameter Group"
+            Family: aurora-mysql5.7
+
+
+#   Alarm for primary database to monitor memory usage
+    DatabasePrimaryMemoryAlarm:
+        Type: AWS::CloudWatch::Alarm
+        Properties:
+            AlarmDescription: Primary database freeable memory is under 700MB.
+            Namespace: AWS/RDS
+            MetricName: FreeableMemory
+            Unit: Bytes
+            Statistic: Average
+            Period: 300
+            EvaluationPeriods: 2
+            Threshold: 700000000
+            ComparisonOperator: LessThanOrEqualToThreshold
+            Dimensions:
+                - Name: DBInstanceIdentifier
+                  Value:
+                      Ref: DatabasePrimaryInstance
+
+Outputs:
+
+    VPC:
+      Description: A reference to the created VPC
+      Value: !Ref VPC
+
+    PublicSubnets:
+      Description: A list of the public subnets
+      Value: !Join [ ",", [ !Ref PublicSubnet1, !Ref PublicSubnet2, !Ref PublicSubnet3 ]]
+
+    PrivateSubnets:
+      Description: A list of the private subnets
+      Value: !Join [ ",", [ !Ref PrivateSubnet1, !Ref PrivateSubnet2, !Ref PrivateSubnet3 ]]
+
+    PublicSubnet1:
+      Description: A reference to the public subnet in the 1st Availability Zone
+      Value: !Ref PublicSubnet1
+
+    PublicSubnet2:
+      Description: A reference to the public subnet in the 2nd Availability Zone
+      Value: !Ref PublicSubnet2
+
+    PublicSubnet3:
+      Description: A reference to the public subnet in the 3rd Availability Zone
+      Value: !Ref PublicSubnet3
+
+    PrivateSubnet1:
+      Description: A reference to the private subnet in the 1st Availability Zone
+      Value: !Ref PrivateSubnet1
+
+    PrivateSubnet2:
+      Description: A reference to the private subnet in the 2nd Availability Zone
+      Value: !Ref PrivateSubnet2
+
+    PrivateSubnet3:
+      Description: A reference to the private subnet in the 3rd Availability Zone
+      Value: !Ref PrivateSubnet3
+
+    NatGateway1EIP:
+      Description: NAT Gateway 1 IP address
+      Value: !Ref NatGateway1EIP
+
+    EC2SecurityGroup:
+        Description: A reference to the security group for EC2 hosts
+        Value: !Ref EC2SecurityGroup
+
+    LoadBalancerSecurityGroup:
+        Description: A reference to the security group for load balancers
+        Value: !Ref LoadBalancerSecurityGroup
+
+    DBSecurityGroup:
+        Description: A reference to the security group for the database
+        Value: !Ref DBSecurityGroup
+
+    LoadBalancer:
+        Description: A reference to the Application Load Balancer
+        Value: !Ref LoadBalancer
+
+    LoadBalancerUrl:
+        Description: The URL of the ALB
+        Value: !GetAtt LoadBalancer.DNSName
+
+    ListenerHTTP:
+        Description: A reference to a port 80 listener
+        Value: !Ref LoadBalancerListenerHTTP
+
+    ListenerHTTPS:
+        Description: A reference to a port 443 listener
+        Value: !Ref LoadBalancerListenerHTTPS
+
+    AuroraClusterEndpointAddress:
+        Description: Aurora cluster endpoint address
+        Value: !GetAtt DatabaseCluster.Endpoint.Address
+
+    AuroraClusterEndpointPort:
+        Description: Aurora cluster endpoint port
+        Value: !GetAtt DatabaseCluster.Endpoint.Port
